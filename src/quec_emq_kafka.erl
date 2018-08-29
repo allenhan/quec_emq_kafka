@@ -324,128 +324,128 @@ unload_(Hook, Fun, Filter) ->
 
 %% ==================== ekaf_init STA.===============================%%
 
-%%ekaf_init(_Env) ->
-%%
-%%  {ok, Kafka} = application:get_env(emqttd_plugin_kafka_bridge, kafka),
-%%  BootstrapBroker = proplists:get_value(bootstrap_broker, Kafka),
-%%  PartitionStrategy= proplists:get_value(partition_strategy, Kafka),
-%%  %% Set partition strategy, like application:set_env(ekaf, ekaf_partition_strategy, strict_round_robin),
-%%  application:set_env(ekaf, ekaf_partition_strategy, PartitionStrategy),
-%%  %% Set broker url and port, like application:set_env(ekaf, ekaf_bootstrap_broker, {"127.0.0.1", 9092}),
-%%  application:set_env(ekaf, ekaf_bootstrap_broker, BootstrapBroker),
-%%  %% Set topic
-%%  application:set_env(ekaf, ekaf_bootstrap_topics, <<"quec_emq_to_kafka">>),
-%%
-%%%%  {ok, _} = application:ensure_all_started(kafkamocker),
-%%%%  {ok, _} = application:ensure_all_started(gproc),
-%%%%  {ok, _} = application:ensure_all_started(ranch),
-%%%%  {ok, _} = application:ensure_all_started(ekaf),
-%%
-%%  io:format("Init ekaf with ~p~n", [BootstrapBroker]),
-%%
-%%  ok.
-%%%% ==================== ekaf_init END.===============================%%
-%%
-%%
-%%%% ==================== ekaf_send STA.===============================%%
-%%ekaf_send(Type, ClientId, {}, _Env) ->
-%%  Json = mochijson2:encode([
-%%    {type, Type},
-%%    {client_id, ClientId},
-%%    {message, {}},
-%%    {cluster_node, node()},
-%%    {ts, emqttd_time:now_ms()}
-%%  ]),
-%%  ekaf_send_sync(Json);
-%%ekaf_send(Type, ClientId, {Reason}, _Env) ->
-%%  Json = mochijson2:encode([
-%%    {type, Type},
-%%    {client_id, ClientId},
-%%    {cluster_node, node()},
-%%    {message, Reason},
-%%    {ts, emqttd_time:now_ms()}
-%%  ]),
-%%  ekaf_send_sync(Json);
-%%ekaf_send(Type, ClientId, {Topic, Opts}, _Env) ->
-%%  Json = mochijson2:encode([
-%%    {type, Type},
-%%    {client_id, ClientId},
-%%    {cluster_node, node()},
-%%    {message, [
-%%      {topic, Topic},
-%%      {opts, Opts}
-%%    ]},
-%%    {ts, emqttd_time:now_ms()}
-%%  ]),
-%%  ekaf_send_sync(Json);
-%%ekaf_send(Type, _, Message, _Env) ->
-%%  Id = Message#mqtt_message.id,
-%%  From = Message#mqtt_message.from, %需要登录和不需要登录这里的返回值是不一样的
-%%  Topic = Message#mqtt_message.topic,
-%%  Payload = Message#mqtt_message.payload,
-%%  Qos = Message#mqtt_message.qos,
-%%  Dup = Message#mqtt_message.dup,
-%%  Retain = Message#mqtt_message.retain,
-%%  Timestamp = Message#mqtt_message.timestamp,
-%%
-%%  ClientId = c(From),
-%%  Username = u(From),
-%%
-%%  Json = mochijson2:encode([
-%%    {type, Type},
-%%    {client_id, ClientId},
-%%    {message, [
-%%      {username, Username},
-%%      {topic, Topic},
-%%      {payload, Payload},
-%%      {qos, i(Qos)},
-%%      {dup, i(Dup)},
-%%      {retain, i(Retain)}
-%%    ]},
-%%    {cluster_node, node()},
-%%    {ts, emqttd_time:now_ms()}
-%%  ]),
-%%  ekaf_send_sync(Json).
-%%
-%%ekaf_send_async(Msg) ->
-%%  Topic = ekaf_get_topic(),
-%%  ekaf_send_async(Topic, Msg).
-%%ekaf_send_async(Topic, Msg) ->
-%%  ekaf:produce_async_batched(list_to_binary(Topic), list_to_binary(Msg)).
-%%ekaf_send_sync(Msg) ->
-%%  Topic = ekaf_get_topic(),
-%%  ekaf_send_sync(Topic, Msg).
-%%ekaf_send_sync(Topic, Msg) ->
-%%  ekaf:produce_sync_batched(list_to_binary(Topic), list_to_binary(Msg)).
-%%
-%%i(true) -> 1;
-%%i(false) -> 0;
-%%i(I) when is_integer(I) -> I.
-%%c({ClientId, Username}) -> ClientId;
-%%c(From) -> From.
-%%u({ClientId, Username}) -> Username;
-%%u(From) -> From.
-%%%% ==================== ekaf_send END.===============================%%
-%%
-%%
-%%%% ==================== ekaf_set_host STA.===============================%%
-%%ekaf_set_host(Host) ->
-%%  ekaf_set_host(Host, 9092).
-%%ekaf_set_host(Host, Port) ->
-%%  Broker = {Host, Port},
-%%  application:set_env(ekaf, ekaf_bootstrap_broker, Broker),
-%%  io:format("reset ekaf Broker ~s:~b ~n", [Host, Port]),
-%%  ok.
-%%%% ==================== ekaf_set_host END.===============================%%
-%%
-%%%% ==================== ekaf_set_topic STA.===============================%%
-%%ekaf_set_topic(Topic) ->
-%%  application:set_env(ekaf, ekaf_bootstrap_topics, list_to_binary(Topic)),
-%%  ok.
-%%ekaf_get_topic() ->
-%%  Env = application:get_env(?APP, kafka),
-%%  {ok, Kafka} = Env,
-%%  Topic = proplists:get_value(topic, Kafka),
-%%  Topic.
+ekaf_init(_Env) ->
+
+ {ok, Kafka} = application:get_env(quec_emq_config, kafka),
+ BootstrapBroker = proplists:get_value(bootstrap_broker, Kafka),
+ PartitionStrategy= proplists:get_value(partition_strategy, Kafka),
+ %% Set partition strategy, like application:set_env(ekaf, ekaf_partition_strategy, strict_round_robin),
+ application:set_env(ekaf, ekaf_partition_strategy, PartitionStrategy),
+ %% Set broker url and port, like application:set_env(ekaf, ekaf_bootstrap_broker, {"127.0.0.1", 9092}),
+ application:set_env(ekaf, ekaf_bootstrap_broker, BootstrapBroker),
+ %% Set topic
+ application:set_env(ekaf, ekaf_bootstrap_topics, <<"quec_emq_to_kafka">>),
+
+%%  {ok, _} = application:ensure_all_started(kafkamocker),
+%%  {ok, _} = application:ensure_all_started(gproc),
+%%  {ok, _} = application:ensure_all_started(ranch),
+{ok, _} = application:ensure_all_started(ekaf),
+
+ io:format("Init ekaf with ~p~n", [BootstrapBroker]),
+
+ ok.
+%% ==================== ekaf_init END.===============================%%
+
+
+%% ==================== ekaf_send STA.===============================%%
+ekaf_send(Type, ClientId, {}, _Env) ->
+ Json = mochijson2:encode([
+   {type, Type},
+   {client_id, ClientId},
+   {message, {}},
+   {cluster_node, node()},
+   {ts, emqttd_time:now_ms()}
+ ]),
+ ekaf_send_sync(Json);
+ekaf_send(Type, ClientId, {Reason}, _Env) ->
+ Json = mochijson2:encode([
+   {type, Type},
+   {client_id, ClientId},
+   {cluster_node, node()},
+   {message, Reason},
+   {ts, emqttd_time:now_ms()}
+ ]),
+ ekaf_send_sync(Json);
+ekaf_send(Type, ClientId, {Topic, Opts}, _Env) ->
+ Json = mochijson2:encode([
+   {type, Type},
+   {client_id, ClientId},
+   {cluster_node, node()},
+   {message, [
+     {topic, Topic},
+     {opts, Opts}
+   ]},
+   {ts, emqttd_time:now_ms()}
+ ]),
+ ekaf_send_sync(Json);
+ekaf_send(Type, _, Message, _Env) ->
+ Id = Message#mqtt_message.id,
+ From = Message#mqtt_message.from, %需要登录和不需要登录这里的返回值是不一样的
+ Topic = Message#mqtt_message.topic,
+ Payload = Message#mqtt_message.payload,
+ Qos = Message#mqtt_message.qos,
+ Dup = Message#mqtt_message.dup,
+ Retain = Message#mqtt_message.retain,
+ Timestamp = Message#mqtt_message.timestamp,
+
+ ClientId = c(From),
+ Username = u(From),
+
+ Json = mochijson2:encode([
+   {type, Type},
+   {client_id, ClientId},
+   {message, [
+     {username, Username},
+     {topic, Topic},
+     {payload, Payload},
+     {qos, i(Qos)},
+     {dup, i(Dup)},
+     {retain, i(Retain)}
+   ]},
+   {cluster_node, node()},
+   {ts, emqttd_time:now_ms()}
+ ]),
+ ekaf_send_sync(Json).
+
+ekaf_send_async(Msg) ->
+ Topic = ekaf_get_topic(),
+ ekaf_send_async(Topic, Msg).
+ekaf_send_async(Topic, Msg) ->
+ ekaf:produce_async_batched(list_to_binary(Topic), list_to_binary(Msg)).
+ekaf_send_sync(Msg) ->
+ Topic = ekaf_get_topic(),
+ ekaf_send_sync(Topic, Msg).
+ekaf_send_sync(Topic, Msg) ->
+ ekaf:produce_sync_batched(list_to_binary(Topic), list_to_binary(Msg)).
+
+i(true) -> 1;
+i(false) -> 0;
+i(I) when is_integer(I) -> I.
+c({ClientId, Username}) -> ClientId;
+c(From) -> From.
+u({ClientId, Username}) -> Username;
+u(From) -> From.
+%% ==================== ekaf_send END.===============================%%
+
+
+%% ==================== ekaf_set_host STA.===============================%%
+ekaf_set_host(Host) ->
+ ekaf_set_host(Host, 9092).
+ekaf_set_host(Host, Port) ->
+ Broker = {Host, Port},
+ application:set_env(ekaf, ekaf_bootstrap_broker, Broker),
+ io:format("reset ekaf Broker ~s:~b ~n", [Host, Port]),
+ ok.
+%% ==================== ekaf_set_host END.===============================%%
+
+%% ==================== ekaf_set_topic STA.===============================%%
+ekaf_set_topic(Topic) ->
+ application:set_env(ekaf, ekaf_bootstrap_topics, list_to_binary(Topic)),
+ ok.
+ekaf_get_topic() ->
+ Env = application:get_env(?APP, kafka),
+ {ok, Kafka} = Env,
+ Topic = proplists:get_value(topic, Kafka),
+ Topic.
 %% ==================== ekaf_set_topic END.===============================%%
 
