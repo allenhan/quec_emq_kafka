@@ -20,161 +20,113 @@
 
 -define(APP, quec_emq_kafka).
 
--export([load/0, unload/0]).
+-export([load/1, unload/0]).
 
--export([on_client_connected/3, on_client_disconnected/3]).
+-export([on_client_connected/4, on_client_disconnected/3]).
+-export([on_client_subscribe/3, on_client_unsubscribe/3]).
+-export([on_session_created/3, on_session_resumed/3, on_session_terminated/3]).
+-export([on_session_subscribed/4, on_session_unsubscribed/4]).
+-export([on_message_publish/2, on_message_delivered/3, on_message_acked/3, on_message_dropped/3]).
 
--export([on_client_subscribe/4, on_client_unsubscribe/4]).
+-define(LOG(Level, Format, Args), lager:Level("kafka: " ++ Format, Args)).
 
--export([on_session_created/3, on_session_subscribed/4, on_session_unsubscribed/4,
-         on_session_terminated/4]).
+%% Called when the plugin application start
+load(Env) ->
+    ekaf_init(Env),
+    emqx:hook('client.connected', fun ?MODULE:on_client_connected/4, [Env]),
+    emqx:hook('client.disconnected', fun ?MODULE:on_client_disconnected/3, [Env]),
+    emqx:hook('client.subscribe', fun ?MODULE:on_client_subscribe/3, [Env]),
+    emqx:hook('client.unsubscribe', fun ?MODULE:on_client_unsubscribe/3, [Env]),
+    emqx:hook('session.created', fun ?MODULE:on_session_created/3, [Env]),
+    emqx:hook('session.resumed', fun ?MODULE:on_session_resumed/3, [Env]),
+    emqx:hook('session.subscribed', fun ?MODULE:on_session_subscribed/4, [Env]),
+    emqx:hook('session.unsubscribed', fun ?MODULE:on_session_unsubscribed/4, [Env]),
+    emqx:hook('session.terminated', fun ?MODULE:on_session_terminated/3, [Env]),
+    emqx:hook('message.publish', fun ?MODULE:on_message_publish/2, [Env]),
+    emqx:hook('message.delivered', fun ?MODULE:on_message_delivered/3, [Env]),
+    emqx:hook('message.acked', fun ?MODULE:on_message_acked/3, [Env]),
+    emqx:hook('message.dropped', fun ?MODULE:on_message_dropped/3, [Env]).
 
--export([on_message_publish/2, on_message_delivered/4, on_message_acked/4]).
+on_client_connected(#{client_id := ClientId}, ConnAck, ConnInfo, _Env) ->
+        Params = [{action, client_connected},
+        {client_id, ClientId},
+        {username, ConnInfo},
+        {conn_ack, ConnAck}],
+        send_http_request(Params),
+    io:format("Client(~s) connected, connack: ~w, conninfo:~p~n", [ClientId, ConnAck, ConnInfo]).
 
--define(LOG(Level, Format, Args), lager:Level("WebHook: " ++ Format, Args)).
-
-load() ->
-    %ekaf_init(application:get_all_env()),
-    lists:foreach(fun({Hook, Fun, Filter}) ->
-        load_(Hook, binary_to_atom(Fun, utf8), Filter, {Filter})
-    end, parse_rule(application:get_env(?APP, rules, []))).
-
-unload() ->
-    lists:foreach(fun({Hook, Fun, Filter}) ->
-        unload_(Hook, binary_to_atom(Fun, utf8), Filter)
-    end, parse_rule(application:get_env(?APP, rules, []))).
-
-%%--------------------------------------------------------------------
-%% Client connected
-%%--------------------------------------------------------------------
-
-on_client_connected(0, Client = #mqtt_client{client_id = ClientId, username = Username}, _Env) ->
-    Params = [{action, client_connected},
-              {client_id, ClientId},
-              {username, Username},
-              {conn_ack, 0}],
-     send_http_request(Params),
-
-    {ok, Client};
-
-on_client_connected(_, Client = #mqtt_client{}, _Env) ->
-    {ok, Client}.
-
-%%--------------------------------------------------------------------
-%% Client disconnected
-%%--------------------------------------------------------------------
-
-on_client_disconnected(auth_failure, #mqtt_client{}, Env) ->
-    ok;
-on_client_disconnected({shutdown, Reason}, Client, Env) when is_atom(Reason) ->
-    on_client_disconnected(Reason, Client, Env);
-on_client_disconnected(Reason, _Client = #mqtt_client{client_id = ClientId, username = Username}, _Env)
-    when is_atom(Reason) ->
-    Params = [{action, client_disconnected},
-              {client_id, ClientId},
-              {username, Username},
-              {reason, Reason}],
+on_client_disconnected(#{client_id := ClientId}, ReasonCode, _Env) ->
+        Params = [{action, client_disconnected},
+        {client_id, ClientId},
+        {reason, Reason}
+                ],
     send_http_request(Params),
-    ok;
-on_client_disconnected(Reason, _Client, _Env) ->
-    ?LOG(error, "Client disconnected, cannot encode reason: ~p", [Reason]),
-    ok.
+    io:format("Client(~s) disconnected, reason_code: ~w~n", [ClientId, ReasonCode]).
 
-%%--------------------------------------------------------------------
-%% Client subscribe
-%%--------------------------------------------------------------------
-
-on_client_subscribe(ClientId, Username, TopicTable, {Filter}) ->
-    lists:foreach(fun({Topic, Opts}) ->
-        with_filter(fun() ->
-            Params = [{action, client_subscribe},
-                      {client_id, ClientId},
-                      {username, Username},
-                      {topic, Topic},
-                      {opts, Opts}],
-            send_http_request(Params)
-        end, Topic, Filter)
-    end, TopicTable).
-
-%%--------------------------------------------------------------------
-%% Client unsubscribe
-%%--------------------------------------------------------------------
-
-on_client_unsubscribe(ClientId, Username, TopicTable, {Filter}) ->
-    lists:foreach(fun({Topic, Opts}) ->
-        with_filter(fun() ->
-            Params = [{action, client_unsubscribe},
-                      {client_id, ClientId},
-                      {username, Username},
-                      {topic, Topic},
-                      {opts, Opts}],
-            send_http_request(Params)
-        end, Topic, Filter)
-    end, TopicTable).
-
-%%--------------------------------------------------------------------
-%% Session created
-%%--------------------------------------------------------------------
-
-on_session_created(ClientId, Username, _Env) ->
-    Params = [{action, session_created},
-              {client_id, ClientId},
-              {username, Username}],
+on_client_subscribe(#{client_id := ClientId}, RawTopicFilters, _Env) ->
+        Params = [{action, client_subscribe},
+        {client_id, ClientId},
+        {rawTopicFilters, RawTopicFilters}
+                ],
     send_http_request(Params),
-    ok.
+    io:format("Client(~s) will subscribe: ~p~n", [ClientId, RawTopicFilters]),
+    {ok, RawTopicFilters}.
 
-%%--------------------------------------------------------------------
-%% Session subscribed
-%%--------------------------------------------------------------------
+on_client_unsubscribe(#{client_id := ClientId}, RawTopicFilters, _Env) ->
+        Params = [{action, client_unsubscribe},
+        {client_id, ClientId},
+        {rawTopicFilters, RawTopicFilters}
+                ],
+    send_http_request(Params),
+    io:format("Client(~s) unsubscribe ~p~n", [ClientId, RawTopicFilters]),
+    {ok, RawTopicFilters}.
 
-on_session_subscribed(ClientId, Username, {Topic, Opts}, {Filter}) ->
-    with_filter(fun() ->
+on_session_created(#{client_id := ClientId}, SessInfo, _Env) ->
+        Params = [{action, session_created},
+        {client_id, ClientId},
+        {sessInfo, SessInfo}
+                ],
+    send_http_request(Params),
+    io:format("Session(~s) created: ~p~n", [ClientId, SessInfo]).
+
+on_session_resumed(#{client_id := ClientId}, SessInfo, _Env) ->
+        Params = [{action, session_resumed},
+        {client_id, ClientId},
+        {sessInfo, SessInfo}
+                ],
+    send_http_request(Params),
+    io:format("Session(~s) resumed: ~p~n", [ClientId, SessInfo]).
+
+on_session_subscribed(#{client_id := ClientId}, Topic, SubOpts, _Env) ->
         Params = [{action, session_subscribed},
-                  {client_id, ClientId},
-                  {username, Username},
-                  {topic, Topic},
-                  {opts, Opts}],
-        send_http_request(Params)
-    end, Topic, Filter).
-
-%%--------------------------------------------------------------------
-%% Session unsubscribed
-%%--------------------------------------------------------------------
-
-on_session_unsubscribed(ClientId, Username, {Topic, _Opts}, {Filter}) ->
-    with_filter(fun() ->
-        Params = [{action, session_unsubscribed},
-                  {client_id, ClientId},
-                  {username, Username},
-                  {topic, Topic}],
-        send_http_request(Params)
-    end, Topic, Filter).
-
-%%--------------------------------------------------------------------
-%% Session terminated
-%%--------------------------------------------------------------------
-
-on_session_terminated(ClientId, Username, {shutdown, Reason}, Env) when is_atom(Reason) ->
-    on_session_terminated(ClientId, Username, Reason, Env);
-on_session_terminated(ClientId, Username, Reason, _Env) when is_atom(Reason) ->
-    Params = [{action, session_terminated},
-              {client_id, ClientId},
-              {username, Username},
-              {reason, Reason}],
+        {client_id, ClientId},
+        {topic, Topic},
+        {subopts,SubOpts}
+                ],
     send_http_request(Params),
-    ok;
-on_session_terminated(_ClientId, _Username, Reason, _Env) ->
-    ?LOG(error, "Session terminated, cannot encode the reason: ~p", [Reason]),
-    ok.
+    io:format("Session(~s) subscribe ~s with subopts: ~p~n", [ClientId, Topic, SubOpts]).
 
-%%--------------------------------------------------------------------
-%% Message publish
-%%--------------------------------------------------------------------
+on_session_unsubscribed(#{client_id := ClientId}, Topic, Opts, _Env) ->
+        Params = [{action, session_unsubscribed},
+        {client_id, ClientId},
+        {topic, Topic},
+        {opts,Opts}
+                ],
+    send_http_request(Params),
+    io:format("Session(~s) unsubscribe ~s with opts: ~p~n", [ClientId, Topic, Opts]).
 
-on_message_publish(Message = #mqtt_message{topic = <<"$SYS/", _/binary>>}, _Env) ->
+on_session_terminated(#{client_id := ClientId}, ReasonCode, _Env) ->
+        Params = [{action, session_terminated},
+        {client_id, ClientId},
+        {reasoncode, ReasonCode}
+                ],
+    send_http_request(Params),
+    io:format("Session(~s) terminated: ~p.", [ClientId, ReasonCode]).
+
+%% Transform message and return
+on_message_publish(Message = #message{topic = <<"$SYS/", _/binary>>}, _Env) ->
     {ok, Message};
-on_message_publish(Message = #mqtt_message{topic = Topic}, {Filter}) ->
-    with_filter(fun() ->
+on_message_publish(Message, _Env) ->
         {FromClientId, FromUsername} = format_from(Message#mqtt_message.from),
         Params = [{action, message_publish},
                   {from_client_id, FromClientId},
@@ -185,15 +137,10 @@ on_message_publish(Message = #mqtt_message{topic = Topic}, {Filter}) ->
                   {payload, Message#mqtt_message.payload},
                   {ts, emqttd_time:now_secs(Message#mqtt_message.timestamp)}],
         send_http_request(Params),
-        {ok, Message}
-    end, Message, Topic, Filter).
+    io:format("Publish ~s~n", [emqx_message:format(Message)]),
+    {ok, Message}.
 
-%%--------------------------------------------------------------------
-%% Message delivered
-%%--------------------------------------------------------------------
-
-on_message_delivered(ClientId, Username, Message = #mqtt_message{topic = Topic}, {Filter}) ->
-    with_filter(fun() ->
+on_message_delivered(#{client_id := ClientId}, Message, _Env) ->
         {FromClientId, FromUsername} = format_from(Message#mqtt_message.from),
         Params = [{action, message_delivered},
                   {client_id, ClientId},
@@ -206,14 +153,10 @@ on_message_delivered(ClientId, Username, Message = #mqtt_message{topic = Topic},
                   {payload, Message#mqtt_message.payload},
                   {ts, emqttd_time:now_secs(Message#mqtt_message.timestamp)}],
         send_http_request(Params)
-    end, Topic, Filter).
+    io:format("Delivered message to client(~s): ~s~n", [ClientId, emqx_message:format(Message)]),
+    {ok, Message}.
 
-%%--------------------------------------------------------------------
-%% Message acked
-%%--------------------------------------------------------------------
-
-on_message_acked(ClientId, Username, Message = #mqtt_message{topic = Topic}, {Filter}) ->
-    with_filter(fun() ->
+on_message_acked(#{client_id := ClientId}, Message, _Env) ->
         {FromClientId, FromUsername} = format_from(Message#mqtt_message.from),
         Params = [{action, message_acked},
                   {client_id, ClientId},
@@ -226,7 +169,163 @@ on_message_acked(ClientId, Username, Message = #mqtt_message{topic = Topic}, {Fi
                   {payload, Message#mqtt_message.payload},
                   {ts, emqttd_time:now_secs(Message#mqtt_message.timestamp)}],
         send_http_request(Params)
-    end, Topic, Filter).
+    io:format("Session(~s) acked message: ~s~n", [ClientId, emqx_message:format(Message)]),
+    {ok, Message}.
+
+on_message_dropped(_By, #message{topic = <<"$SYS/", _/binary>>}, _Env) ->
+    ok;
+on_message_dropped(#{node := Node}, Message, _Env) ->
+    io:format("Message dropped by node ~s: ~s~n", [Node, emqx_message:format(Message)]);
+on_message_dropped(#{client_id := ClientId}, Message, _Env) ->
+    io:format("Message dropped by client ~s: ~s~n", [ClientId, emqx_message:format(Message)]).
+
+%% Called when the plugin application stop
+unload() ->
+    emqx:unhook('client.connected', fun ?MODULE:on_client_connected/4),
+    emqx:unhook('client.disconnected', fun ?MODULE:on_client_disconnected/3),
+    emqx:unhook('client.subscribe', fun ?MODULE:on_client_subscribe/3),
+    emqx:unhook('client.unsubscribe', fun ?MODULE:on_client_unsubscribe/3),
+    emqx:unhook('session.created', fun ?MODULE:on_session_created/3),
+    emqx:unhook('session.resumed', fun ?MODULE:on_session_resumed/3),
+    emqx:unhook('session.subscribed', fun ?MODULE:on_session_subscribed/4),
+    emqx:unhook('session.unsubscribed', fun ?MODULE:on_session_unsubscribed/4),
+    emqx:unhook('session.terminated', fun ?MODULE:on_session_terminated/3),
+    emqx:unhook('message.publish', fun ?MODULE:on_message_publish/2),
+    emqx:unhook('message.delivered', fun ?MODULE:on_message_delivered/3),
+    emqx:unhook('message.acked', fun ?MODULE:on_message_acked/3),
+    emqx:unhook('message.dropped', fun ?MODULE:on_message_dropped/3).
+
+%%--------------------------------------------------------------------
+%% Client unsubscribe
+%%--------------------------------------------------------------------
+
+% on_client_unsubscribe(ClientId, Username, TopicTable, {Filter}) ->
+%     lists:foreach(fun({Topic, Opts}) ->
+%         with_filter(fun() ->
+%             Params = [{action, client_unsubscribe},
+%                       {client_id, ClientId},
+%                       {username, Username},
+%                       {topic, Topic},
+%                       {opts, Opts}],
+%             send_http_request(Params)
+%         end, Topic, Filter)
+%     end, TopicTable).
+
+% %%--------------------------------------------------------------------
+% %% Session created
+% %%--------------------------------------------------------------------
+
+% on_session_created(ClientId, Username, _Env) ->
+%     Params = [{action, session_created},
+%               {client_id, ClientId},
+%               {username, Username}],
+%     send_http_request(Params),
+%     ok.
+
+% %%--------------------------------------------------------------------
+% %% Session subscribed
+% %%--------------------------------------------------------------------
+
+% on_session_subscribed(ClientId, Username, {Topic, Opts}, {Filter}) ->
+%     with_filter(fun() ->
+%         Params = [{action, session_subscribed},
+%                   {client_id, ClientId},
+%                   {username, Username},
+%                   {topic, Topic},
+%                   {opts, Opts}],
+%         send_http_request(Params)
+%     end, Topic, Filter).
+
+% %%--------------------------------------------------------------------
+% %% Session unsubscribed
+% %%--------------------------------------------------------------------
+
+% on_session_unsubscribed(ClientId, Username, {Topic, _Opts}, {Filter}) ->
+%     with_filter(fun() ->
+%         Params = [{action, session_unsubscribed},
+%                   {client_id, ClientId},
+%                   {username, Username},
+%                   {topic, Topic}],
+%         send_http_request(Params)
+%     end, Topic, Filter).
+
+% %%--------------------------------------------------------------------
+% %% Session terminated
+% %%--------------------------------------------------------------------
+
+% on_session_terminated(ClientId, Username, {shutdown, Reason}, Env) when is_atom(Reason) ->
+%     on_session_terminated(ClientId, Username, Reason, Env);
+% on_session_terminated(ClientId, Username, Reason, _Env) when is_atom(Reason) ->
+%     Params = [{action, session_terminated},
+%               {client_id, ClientId},
+%               {username, Username},
+%               {reason, Reason}],
+%     send_http_request(Params),
+%     ok;
+% on_session_terminated(_ClientId, _Username, Reason, _Env) ->
+%     ?LOG(error, "Session terminated, cannot encode the reason: ~p", [Reason]),
+%     ok.
+
+% %%--------------------------------------------------------------------
+% %% Message publish
+% %%--------------------------------------------------------------------
+
+% on_message_publish(Message = #mqtt_message{topic = <<"$SYS/", _/binary>>}, _Env) ->
+%     {ok, Message};
+% on_message_publish(Message = #mqtt_message{topic = Topic}, {Filter}) ->
+%     with_filter(fun() ->
+%         {FromClientId, FromUsername} = format_from(Message#mqtt_message.from),
+%         Params = [{action, message_publish},
+%                   {from_client_id, FromClientId},
+%                   {from_username, FromUsername},
+%                   {topic, Message#mqtt_message.topic},
+%                   {qos, Message#mqtt_message.qos},
+%                   {retain, Message#mqtt_message.retain},
+%                   {payload, Message#mqtt_message.payload},
+%                   {ts, emqttd_time:now_secs(Message#mqtt_message.timestamp)}],
+%         send_http_request(Params),
+%         {ok, Message}
+%     end, Message, Topic, Filter).
+
+% %%--------------------------------------------------------------------
+% %% Message delivered
+% %%--------------------------------------------------------------------
+
+% on_message_delivered(ClientId, Username, Message = #mqtt_message{topic = Topic}, {Filter}) ->
+%     with_filter(fun() ->
+%         {FromClientId, FromUsername} = format_from(Message#mqtt_message.from),
+%         Params = [{action, message_delivered},
+%                   {client_id, ClientId},
+%                   {username, Username},
+%                   {from_client_id, FromClientId},
+%                   {from_username, FromUsername},
+%                   {topic, Message#mqtt_message.topic},
+%                   {qos, Message#mqtt_message.qos},
+%                   {retain, Message#mqtt_message.retain},
+%                   {payload, Message#mqtt_message.payload},
+%                   {ts, emqttd_time:now_secs(Message#mqtt_message.timestamp)}],
+%         send_http_request(Params)
+%     end, Topic, Filter).
+
+% %%--------------------------------------------------------------------
+% %% Message acked
+% %%--------------------------------------------------------------------
+
+% on_message_acked(ClientId, Username, Message = #mqtt_message{topic = Topic}, {Filter}) ->
+%     with_filter(fun() ->
+%         {FromClientId, FromUsername} = format_from(Message#mqtt_message.from),
+%         Params = [{action, message_acked},
+%                   {client_id, ClientId},
+%                   {username, Username},
+%                   {from_client_id, FromClientId},
+%                   {from_username, FromUsername},
+%                   {topic, Message#mqtt_message.topic},
+%                   {qos, Message#mqtt_message.qos},
+%                   {retain, Message#mqtt_message.retain},
+%                   {payload, Message#mqtt_message.payload},
+%                   {ts, emqttd_time:now_secs(Message#mqtt_message.timestamp)}],
+%         send_http_request(Params)
+%     end, Topic, Filter).
 
 %%--------------------------------------------------------------------
 %% Internal functions
@@ -234,8 +333,8 @@ on_message_acked(ClientId, Username, Message = #mqtt_message{topic = Topic}, {Fi
 
 send_http_request(Params) ->
     %Params1 = iolist_to_binary(mochijson2:encode(Params)),
-    Params1 = mochijson2:encode(Params).
-   % ekaf_send_sync(Params1).
+    Params1 = mochijson2:encode(Params),
+    ekaf_send_async(<<"quec_emq_to_kafka">>,Params1).
 
 %%    Url = application:get_env(?APP, url, "http://127.0.0.1"),
 %%    ?LOG(debug, "Url:~p, params:~s", [Url, Params1]),
@@ -246,93 +345,62 @@ send_http_request(Params) ->
 %%            ?LOG(error, "HTTP request error: ~p", [Reason]), ok %% TODO: return ok?
 %%    end.
 
-request_(Method, Req, HTTPOpts, Opts, Times) ->
-    %% Resend request, when TCP closed by remotely
-    case httpc:request(Method, Req, HTTPOpts, Opts) of
-        {error, socket_closed_remotely} when Times < 3 ->
-            timer:sleep(trunc(math:pow(10, Times))),
-            request_(Method, Req, HTTPOpts, Opts, Times+1);
-        Other -> Other
-    end.
+% request_(Method, Req, HTTPOpts, Opts, Times) ->
+%     %% Resend request, when TCP closed by remotely
+%     case httpc:request(Method, Req, HTTPOpts, Opts) of
+%         {error, socket_closed_remotely} when Times < 3 ->
+%             timer:sleep(trunc(math:pow(10, Times))),
+%             request_(Method, Req, HTTPOpts, Opts, Times+1);
+%         Other -> Other
+%     end.
 
-parse_rule(Rules) ->
-    parse_rule(Rules, []).
-parse_rule([], Acc) ->
-    lists:reverse(Acc);
-parse_rule([{Rule, Conf} | Rules], Acc) ->
-    {_, Params} = mochijson2:decode(Conf),
-    Action = proplists:get_value(<<"action">>, Params),
-    Filter = proplists:get_value(<<"topic">>, Params),
-    parse_rule(Rules, [{list_to_atom(Rule), Action, Filter} | Acc]).
+% parse_rule(Rules) ->
+%     parse_rule(Rules, []).
+% parse_rule([], Acc) ->
+%     lists:reverse(Acc);
+% parse_rule([{Rule, Conf} | Rules], Acc) ->
+%     {_, Params} = mochijson2:decode(Conf),
+%     Action = proplists:get_value(<<"action">>, Params),
+%     Filter = proplists:get_value(<<"topic">>, Params),
+%     parse_rule(Rules, [{list_to_atom(Rule), Action, Filter} | Acc]).
 
-with_filter(Fun, _, undefined) ->
-    Fun(), ok;
-with_filter(Fun, Topic, Filter) ->
-    case emqttd_topic:match(Topic, Filter) of
-        true  -> Fun(), ok;
-        false -> ok
-    end.
+% with_filter(Fun, _, undefined) ->
+%     Fun(), ok;
+% with_filter(Fun, Topic, Filter) ->
+%     case emqttd_topic:match(Topic, Filter) of
+%         true  -> Fun(), ok;
+%         false -> ok
+%     end.
 
-with_filter(Fun, _, _, undefined) ->
-    Fun();
-with_filter(Fun, Msg, Topic, Filter) ->
-    case emqttd_topic:match(Topic, Filter) of
-        true  -> Fun();
-        false -> {ok, Msg}
-    end.
+% with_filter(Fun, _, _, undefined) ->
+%     Fun();
+% with_filter(Fun, Msg, Topic, Filter) ->
+%     case emqttd_topic:match(Topic, Filter) of
+%         true  -> Fun();
+%         false -> {ok, Msg}
+%     end.
 
-format_from({ClientId, Username}) ->
-    {ClientId, Username};
-format_from(From) when is_atom(From) ->
-    {a2b(From), a2b(From)};
-format_from(_) ->
-    {<<>>, <<>>}.
+% format_from({ClientId, Username}) ->
+%     {ClientId, Username};
+% format_from(From) when is_atom(From) ->
+%     {a2b(From), a2b(From)};
+% format_from(_) ->
+%     {<<>>, <<>>}.
 
-a2b(A) -> erlang:atom_to_binary(A, utf8).
+% a2b(A) -> erlang:atom_to_binary(A, utf8).
 
-
-
-load_(Hook, Fun, Filter, Params) ->
-    case Hook of
-        'client.connected'    -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/3}, [Params]);
-        'client.disconnected' -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/3}, [Params]);
-        'client.subscribe'    -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/4}, [Params]);
-        'client.unsubscribe'  -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/4}, [Params]);
-        'session.created'     -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/3}, [Params]);
-        'session.subscribed'  -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/4}, [Params]);
-        'session.unsubscribed'-> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/4}, [Params]);
-        'session.terminated'  -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/4}, [Params]);
-        'message.publish'     -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/2}, [Params]);
-        'message.acked'       -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/4}, [Params]);
-        'message.delivered'   -> emqttd:hook(Hook, {Filter, fun ?MODULE:Fun/4}, [Params])
-    end.
-
-unload_(Hook, Fun, Filter) ->
-    case Hook of
-        'client.connected'    -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/3});
-        'client.disconnected' -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/3});
-        'client.subscribe'    -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/4});
-        'client.unsubscribe'  -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/4});
-        'session.created'     -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/3});
-        'session.subscribed'  -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/4});
-        'session.unsubscribed'-> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/4});
-        'session.terminated'  -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/4});
-        'message.publish'     -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/2});
-        'message.acked'       -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/4});
-        'message.delivered'   -> emqttd:unhook(Hook, {Filter, fun ?MODULE:Fun/4})
-    end.
 
 %% ==================== ekaf_init STA.===============================%%
 
 ekaf_init(_Env) ->
 
- {ok, Kafka} = application:get_env(quec_emq_config, kafka),
- BootstrapBroker = proplists:get_value(bootstrap_broker, Kafka),
- PartitionStrategy= proplists:get_value(partition_strategy, Kafka),
+% {ok, Kafka} = application:get_env(quec_emq_config, kafka),
+% BootstrapBroker = proplists:get_value(bootstrap_broker, Kafka),
+% PartitionStrategy= proplists:get_value(partition_strategy, Kafka),
  %% Set partition strategy, like application:set_env(ekaf, ekaf_partition_strategy, strict_round_robin),
- application:set_env(ekaf, ekaf_partition_strategy, PartitionStrategy),
+ %application:set_env(ekaf, ekaf_partition_strategy, PartitionStrategy),
  %% Set broker url and port, like application:set_env(ekaf, ekaf_bootstrap_broker, {"127.0.0.1", 9092}),
- application:set_env(ekaf, ekaf_bootstrap_broker, BootstrapBroker),
+ application:set_env(ekaf, ekaf_bootstrap_broker, {"127.0.0.1", 9092}),
  %% Set topic
  application:set_env(ekaf, ekaf_bootstrap_topics, <<"quec_emq_to_kafka">>),
 
@@ -340,112 +408,110 @@ ekaf_init(_Env) ->
 %%  {ok, _} = application:ensure_all_started(gproc),
 %%  {ok, _} = application:ensure_all_started(ranch),
 {ok, _} = application:ensure_all_started(ekaf),
-
  io:format("Init ekaf with ~p~n", [BootstrapBroker]),
-
  ok.
 %% ==================== ekaf_init END.===============================%%
 
 
 %% ==================== ekaf_send STA.===============================%%
-ekaf_send(Type, ClientId, {}, _Env) ->
- Json = mochijson2:encode([
-   {type, Type},
-   {client_id, ClientId},
-   {message, {}},
-   {cluster_node, node()},
-   {ts, emqttd_time:now_ms()}
- ]),
- ekaf_send_sync(Json);
-ekaf_send(Type, ClientId, {Reason}, _Env) ->
- Json = mochijson2:encode([
-   {type, Type},
-   {client_id, ClientId},
-   {cluster_node, node()},
-   {message, Reason},
-   {ts, emqttd_time:now_ms()}
- ]),
- ekaf_send_sync(Json);
-ekaf_send(Type, ClientId, {Topic, Opts}, _Env) ->
- Json = mochijson2:encode([
-   {type, Type},
-   {client_id, ClientId},
-   {cluster_node, node()},
-   {message, [
-     {topic, Topic},
-     {opts, Opts}
-   ]},
-   {ts, emqttd_time:now_ms()}
- ]),
- ekaf_send_sync(Json);
-ekaf_send(Type, _, Message, _Env) ->
- Id = Message#mqtt_message.id,
- From = Message#mqtt_message.from, %需要登录和不需要登录这里的返回值是不一样的
- Topic = Message#mqtt_message.topic,
- Payload = Message#mqtt_message.payload,
- Qos = Message#mqtt_message.qos,
- Dup = Message#mqtt_message.dup,
- Retain = Message#mqtt_message.retain,
- Timestamp = Message#mqtt_message.timestamp,
+% ekaf_send(Type, ClientId, {}, _Env) ->
+%  Json = mochijson2:encode([
+%    {type, Type},
+%    {client_id, ClientId},
+%    {message, {}},
+%    {cluster_node, node()},
+%    {ts, emqttd_time:now_ms()}
+%  ]),
+%  ekaf_send_sync(Json);
+% ekaf_send(Type, ClientId, {Reason}, _Env) ->
+%  Json = mochijson2:encode([
+%    {type, Type},
+%    {client_id, ClientId},
+%    {cluster_node, node()},
+%    {message, Reason},
+%    {ts, emqttd_time:now_ms()}
+%  ]),
+%  ekaf_send_sync(Json);
+% ekaf_send(Type, ClientId, {Topic, Opts}, _Env) ->
+%  Json = mochijson2:encode([
+%    {type, Type},
+%    {client_id, ClientId},
+%    {cluster_node, node()},
+%    {message, [
+%      {topic, Topic},
+%      {opts, Opts}
+%    ]},
+%    {ts, emqttd_time:now_ms()}
+%  ]),
+%  ekaf_send_sync(Json);
+% ekaf_send(Type, _, Message, _Env) ->
+%  Id = Message#mqtt_message.id,
+%  From = Message#mqtt_message.from, %需要登录和不需要登录这里的返回值是不一样的
+%  Topic = Message#mqtt_message.topic,
+%  Payload = Message#mqtt_message.payload,
+%  Qos = Message#mqtt_message.qos,
+%  Dup = Message#mqtt_message.dup,
+%  Retain = Message#mqtt_message.retain,
+%  Timestamp = Message#mqtt_message.timestamp,
 
- ClientId = c(From),
- Username = u(From),
+%  ClientId = c(From),
+%  Username = u(From),
 
- Json = mochijson2:encode([
-   {type, Type},
-   {client_id, ClientId},
-   {message, [
-     {username, Username},
-     {topic, Topic},
-     {payload, Payload},
-     {qos, i(Qos)},
-     {dup, i(Dup)},
-     {retain, i(Retain)}
-   ]},
-   {cluster_node, node()},
-   {ts, emqttd_time:now_ms()}
- ]),
- ekaf_send_sync(Json).
+%  Json = mochijson2:encode([
+%    {type, Type},
+%    {client_id, ClientId},
+%    {message, [
+%      {username, Username},
+%      {topic, Topic},
+%      {payload, Payload},
+%      {qos, i(Qos)},
+%      {dup, i(Dup)},
+%      {retain, i(Retain)}
+%    ]},
+%    {cluster_node, node()},
+%    {ts, emqttd_time:now_ms()}
+%  ]),
+%  ekaf_send_sync(Json).
 
-ekaf_send_async(Msg) ->
- Topic = ekaf_get_topic(),
- ekaf_send_async(Topic, Msg).
+% ekaf_send_async(Msg) ->
+%  Topic = ekaf_get_topic(),
+%  ekaf_send_async(Topic, Msg).
 ekaf_send_async(Topic, Msg) ->
- ekaf:produce_async_batched(list_to_binary(Topic), list_to_binary(Msg)).
-ekaf_send_sync(Msg) ->
- Topic = ekaf_get_topic(),
- ekaf_send_sync(Topic, Msg).
-ekaf_send_sync(Topic, Msg) ->
- ekaf:produce_sync_batched(list_to_binary(Topic), list_to_binary(Msg)).
+  ekaf:produce_async_batched(list_to_binary(Topic), list_to_binary(Msg)).
+% ekaf_send_sync(Msg) ->
+%  Topic = ekaf_get_topic(),
+ %ekaf_send_sync(Topic, Msg).
+  %ekaf_send_sync(Topic, Msg) ->
+   %ekaf:produce_sync_batched(list_to_binary(Topic), list_to_binary(Msg)).
 
-i(true) -> 1;
-i(false) -> 0;
-i(I) when is_integer(I) -> I.
-c({ClientId, Username}) -> ClientId;
-c(From) -> From.
-u({ClientId, Username}) -> Username;
-u(From) -> From.
-%% ==================== ekaf_send END.===============================%%
+% i(true) -> 1;
+% i(false) -> 0;
+% i(I) when is_integer(I) -> I.
+% c({ClientId, Username}) -> ClientId;
+% c(From) -> From.
+% u({ClientId, Username}) -> Username;
+% u(From) -> From.
+% %% ==================== ekaf_send END.===============================%%
 
 
-%% ==================== ekaf_set_host STA.===============================%%
-ekaf_set_host(Host) ->
- ekaf_set_host(Host, 9092).
-ekaf_set_host(Host, Port) ->
- Broker = {Host, Port},
- application:set_env(ekaf, ekaf_bootstrap_broker, Broker),
- io:format("reset ekaf Broker ~s:~b ~n", [Host, Port]),
- ok.
-%% ==================== ekaf_set_host END.===============================%%
+% %% ==================== ekaf_set_host STA.===============================%%
+% ekaf_set_host(Host) ->
+%  ekaf_set_host(Host, 9092).
+% ekaf_set_host(Host, Port) ->
+%  Broker = {Host, Port},
+%  application:set_env(ekaf, ekaf_bootstrap_broker, Broker),
+%  io:format("reset ekaf Broker ~s:~b ~n", [Host, Port]),
+%  ok.
+% %% ==================== ekaf_set_host END.===============================%%
 
-%% ==================== ekaf_set_topic STA.===============================%%
-ekaf_set_topic(Topic) ->
- application:set_env(ekaf, ekaf_bootstrap_topics, list_to_binary(Topic)),
- ok.
-ekaf_get_topic() ->
- Env = application:get_env(?APP, kafka),
- {ok, Kafka} = Env,
- Topic = proplists:get_value(topic, Kafka),
- Topic.
+% %% ==================== ekaf_set_topic STA.===============================%%
+% ekaf_set_topic(Topic) ->
+%  application:set_env(ekaf, ekaf_bootstrap_topics, list_to_binary(Topic)),
+%  ok.
+% ekaf_get_topic() ->
+%  Env = application:get_env(?APP, kafka),
+%  {ok, Kafka} = Env,
+%  Topic = proplists:get_value(topic, Kafka),
+%  Topic.
 %% ==================== ekaf_set_topic END.===============================%%
 
