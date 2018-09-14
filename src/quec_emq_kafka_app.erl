@@ -22,11 +22,11 @@
 
 start(_StartType, _StartArgs) ->
     {ok, Sup} = quec_emq_kafka_sup:start_link(),
-    quec_emq_kafka:load(),
-    quec_emq_kafka_config:register(),
+    quec_emq_kafka:load(application:get_all_env()),
+    %quec_emq_kafka_config:register(),
     {ok, Sup}.
 
 stop(_State) ->
     quec_emq_kafka:unload(),
-    quec_emq_kafka_config:unregister(),
+    %quec_emq_kafka_config:unregister(),
     ok.
