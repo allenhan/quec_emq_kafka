@@ -111,7 +111,7 @@ ekaf_init(_Env) ->
   %% Set topic
   application:set_env(ekaf, ekaf_bootstrap_topics, <<"quec_emq_to_kafka">>),
   {ok, _} = application:ensure_all_started(ekaf),
-  io:format("Init ekaf with ~p~n", BootstrapBroker),
+  %%io:format("Init ekaf with ~p~n", BootstrapBroker),
   ok.
 %% ==================== ekaf_init END.===============================%%
 
