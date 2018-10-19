@@ -178,7 +178,7 @@ ekaf_send(KafkaTopic,Type, _, Message, _Env) ->
 
 ekaf_send_async(Topic,Msg) ->
   %Topic = <<"quec_emq_to_kafka">>,
-  ekaf_send_async(Topic, Msg).
+  ekaf_send_sync(Topic, Msg).
 
 
 %ekaf_send_async(Topic, Msg) ->
