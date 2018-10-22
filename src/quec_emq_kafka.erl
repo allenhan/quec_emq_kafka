@@ -164,7 +164,7 @@ ekaf_send(KafkaTopic,Type, _, Message, _Env) ->
     {type, Type},
     {client_id, ClientId},
     {message, [
-      {messsaseid,Id},
+      {messsaseid,i(Id)},
       {username, Username},
       {topic, Topic},
       {payload, Payload},
