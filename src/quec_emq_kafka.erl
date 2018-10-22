@@ -149,7 +149,7 @@ ekaf_send(KafkaTopic,Type, ClientId, {Topic, Opts}, _Env) ->
   ekaf_send_async(KafkaTopic,Json);
 ekaf_send(KafkaTopic,Type, _, Message, _Env) ->
   Id = Message#mqtt_message.id,
-  PkgId=Message#mqtt_message.pkgid,
+  PktId=Message#mqtt_message.pktid,
   From = Message#mqtt_message.from, %需要登录和不需要登录这里的返回值是不一样的
   Topic = Message#mqtt_message.topic,
   Payload = Message#mqtt_message.payload,
@@ -165,7 +165,7 @@ ekaf_send(KafkaTopic,Type, _, Message, _Env) ->
     {type, Type},
     {client_id, ClientId},
     {message, [
-      {pkgId,PkgId},
+      {pktId,PktId},
       {username, Username},
       {topic, Topic},
       {payload, Payload},
