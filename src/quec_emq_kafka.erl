@@ -47,12 +47,12 @@ load(Env) ->
 
 on_client_connected(ConnAck, Client = #mqtt_client{client_id = ClientId}, _Env) ->
   io:format("client ~s connected, connack: ~w~n", [ClientId, ConnAck]),
-  ekaf_send(<<"emq_nofify">>,<<"client_connect">>, ClientId, {}, _Env),
+  ekaf_send(<<"emq_notify">>,<<"client_connect">>, ClientId, {}, _Env),
   {ok, Client}.
 
 on_client_disconnected(Reason, _Client = #mqtt_client{client_id = ClientId}, _Env) ->
   io:format("client ~s disconnected, reason: ~w~n", [ClientId, Reason]),
-  ekaf_send(<<"emq_nofify">>,<<"client_disconnected">>, ClientId, {Reason}, _Env),
+  ekaf_send(<<"emq_notify">>,<<"client_disconnected">>, ClientId, {Reason}, _Env),
   ok.
 
 on_client_subscribe(ClientId, Username, TopicTable, _Env) ->
@@ -78,6 +78,7 @@ on_session_unsubscribed(ClientId, Username, {Topic, Opts}, _Env) ->
 
 on_session_terminated(ClientId, Username, Reason, _Env) ->
   io:format("session(~s/~s) terminated: ~p.~n", [ClientId, Username, Reason]),
+  ekaf_send(<<"emq_notify">>,<<"client_disconnected">>, ClientId, {Reason}, _Env),
   stop.
 
 %% transform message and return
@@ -85,17 +86,17 @@ on_message_publish(Message = #mqtt_message{topic = <<"$SYS/", _/binary>>}, _Env)
   {ok, Message};
 on_message_publish(Message, _Env) ->
   io:format("publish ~s~n", [emqttd_message:format(Message)]),
-  ekaf_send(<<"emq_message">>,<<"message.publish">>, {}, Message, _Env),
+  ekaf_send(<<"emq_message">>,<<"message_publish">>, {}, Message, _Env),
   {ok, Message}.
 
 on_message_delivered(ClientId, Username, Message, _Env) ->
   io:format("delivered to client(~s/~s): ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
-  ekaf_send(<<"emq_nofify">>,<<"message_delivered">>, ClientId, Message, _Env),
+  ekaf_send(<<"emq_message">>,<<"message_delivered">>, {}, Message, _Env),
   {ok, Message}.
 
 on_message_acked(ClientId, Username, Message, _Env) ->
   io:format("client(~s/~s) acked: ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
-  ekaf_send(<<"emq_nofify">>,<<"message_acked">>, {}, Message, _Env),
+  ekaf_send(<<"emq_message_ack">>,<<"message_acked">>, {}, Message, _Env),
   {ok, Message}.
 
 %% ==================== ekaf_init STA.===============================%%
@@ -111,7 +112,6 @@ ekaf_init(_Env) ->
   %% Set topic
   application:set_env(ekaf, ekaf_bootstrap_topics, <<"quec_emq_to_kafka">>),
   {ok, _} = application:ensure_all_started(ekaf),
-  %%io:format("Init ekaf with ~p~n", BootstrapBroker),
   ok.
 %% ==================== ekaf_init END.===============================%%
 
@@ -164,6 +164,7 @@ ekaf_send(KafkaTopic,Type, _, Message, _Env) ->
     {type, Type},
     {client_id, ClientId},
     {message, [
+      {messsaseid,Id},
       {username, Username},
       {topic, Topic},
       {payload, Payload},
