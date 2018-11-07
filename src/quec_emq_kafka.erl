@@ -46,38 +46,35 @@ load(Env) ->
   emqttd:hook('message.acked', fun ?MODULE:on_message_acked/4, [Env]).
 
 on_client_connected(ConnAck, Client = #mqtt_client{client_id = ClientId}, _Env) ->
-  io:format("client ~s connected, connack: ~w~n", [ClientId, ConnAck]),
+  %io:format("client ~s connected, connack: ~w~n", [ClientId, ConnAck]),
   ekaf_send(<<"emq_notify">>,<<"client_connect">>, ClientId, {}, _Env),
   {ok, Client}.
 
 on_client_disconnected(Reason, _Client = #mqtt_client{client_id = ClientId}, _Env) ->
-  io:format("client ~s disconnected, reason: ~w~n", [ClientId, Reason]),
+  %io:format("client ~s disconnected, reason: ~w~n", [ClientId, Reason]),
   ekaf_send(<<"emq_notify">>,<<"client_disconnected">>, ClientId, {Reason}, _Env),
   ok.
 
 on_client_subscribe(ClientId, Username, TopicTable, _Env) ->
-  io:format("client(~s/~s) will subscribe: ~p~n", [Username, ClientId, TopicTable]),
+  %io:format("client(~s/~s) will subscribe: ~p~n", [Username, ClientId, TopicTable]),
   {ok, TopicTable}.
 
 on_client_unsubscribe(ClientId, Username, TopicTable, _Env) ->
-  io:format("client(~s/~s) unsubscribe ~p~n", [ClientId, Username, TopicTable]),
+  %io:format("client(~s/~s) unsubscribe ~p~n", [ClientId, Username, TopicTable]),
   {ok, TopicTable}.
 
 on_session_created(ClientId, Username, _Env) ->
-  io:format("session(~s/~s) created.", [ClientId, Username]).
+  %io:format("session(~s/~s) created.", [ClientId, Username]).
+  {ok, Username}.
 
 on_session_subscribed(ClientId, Username, {Topic, Opts}, _Env) ->
-  io:format("session(~s/~s) subscribed: ~p~n", [Username, ClientId, {Topic, Opts}]),
-  %ekaf_send(<<"subscribed">>, ClientId, {Topic, Opts}, _Env),
   {ok, {Topic, Opts}}.
 
 on_session_unsubscribed(ClientId, Username, {Topic, Opts}, _Env) ->
-  io:format("session(~s/~s) unsubscribed: ~p~n", [Username, ClientId, {Topic, Opts}]),
-  % ekaf_send(<<"unsubscribed">>, ClientId, {Topic, Opts}, _Env),
   ok.
 
 on_session_terminated(ClientId, Username, Reason, _Env) ->
-  io:format("session(~s/~s) terminated: ~p.~n", [ClientId, Username, Reason]),
+  %io:format("session(~s/~s) terminated: ~p.~n", [ClientId, Username, Reason]),
   ekaf_send(<<"emq_notify">>,<<"client_disconnected">>, ClientId, {Reason}, _Env),
   stop.
 
@@ -85,17 +82,17 @@ on_session_terminated(ClientId, Username, Reason, _Env) ->
 on_message_publish(Message = #mqtt_message{topic = <<"$SYS/", _/binary>>}, _Env) ->
   {ok, Message};
 on_message_publish(Message, _Env) ->
-  io:format("publish ~s~n", [emqttd_message:format(Message)]),
+  %io:format("publish ~s~n", [emqttd_message:format(Message)]),
   ekaf_send(<<"emq_message">>,<<"message_publish">>, {}, Message, _Env),
   {ok, Message}.
 
 on_message_delivered(ClientId, Username, Message, _Env) ->
-  io:format("delivered to client(~s/~s): ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
+  %io:format("delivered to client(~s/~s): ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
   ekaf_send(<<"emq_message">>,<<"message_delivered">>, {}, Message, _Env),
   {ok, Message}.
 
 on_message_acked(ClientId, Username, Message, _Env) ->
-  io:format("client(~s/~s) acked: ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
+  %io:format("client(~s/~s) acked: ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
   ekaf_send(<<"emq_message_ack">>,<<"message_acked">>, {}, Message, _Env),
   {ok, Message}.
 
