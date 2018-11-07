@@ -106,10 +106,7 @@ ekaf_init(_Env) ->
   application:set_env(ekaf, ekaf_bootstrap_broker, BootstrapBroker),
   application:set_env(ekaf, ekaf_partition_strategy, PartitionStrategy),
   application:set_env(ekaf, ekaf_per_partition_workers, Works),
-  application:set_env(ekaf, {ekaf_max_buffer_size, [
-    {ekaf_max_buffer_size, 10000}
-  ]
-  }),
+  application:set_env(ekaf, ekaf_max_buffer_size, 10000),
   %% Set topic
   application:set_env(ekaf, ekaf_bootstrap_topics, <<"quec_emq_to_kafka">>),
   {ok, _} = application:ensure_all_started(ekaf),
