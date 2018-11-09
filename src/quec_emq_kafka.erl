@@ -83,7 +83,7 @@ on_message_publish(Message = #mqtt_message{topic = <<"$SYS/", _/binary>>}, _Env)
   {ok, Message};
 on_message_publish(Message, _Env) ->
   %io:format("publish ~s~n", [emqttd_message:format(Message)]),
-  ekaf_send(<<"emq_message">>, <<"message_publish">>, {}, Message, _Env),
+ % ekaf_send(<<"emq_message">>, <<"message_publish">>, {}, Message, _Env),
   {ok, Message}.
 
 on_message_delivered(ClientId, Username, Message, _Env) ->
@@ -103,10 +103,12 @@ ekaf_init(_Env) ->
   BootstrapBroker = proplists:get_value(bootstrap_broker, Kafka),
   PartitionStrategy = proplists:get_value(partition_strategy, Kafka),
   Works = proplists:get_value(ekaf_per_partition_workers, Kafka),
+  MaxbufferSize= proplists:get_value(ekaf_per_partition_workers, Kafka),
   application:set_env(ekaf, ekaf_bootstrap_broker, BootstrapBroker),
   application:set_env(ekaf, ekaf_partition_strategy, PartitionStrategy),
   application:set_env(ekaf, ekaf_per_partition_workers, Works),
-  application:set_env(ekaf, ekaf_max_buffer_size, 10000),
+  application:set_env(ekaf, ekaf_max_buffer_size, MaxbufferSize),
+  %application:set_env(ekaf, ekaf_bootstrap_broker, {"127.0.0.1", 9092}),
   %% Set topic
   application:set_env(ekaf, ekaf_bootstrap_topics, <<"quec_emq_to_kafka">>),
   {ok, _} = application:ensure_all_started(ekaf),
