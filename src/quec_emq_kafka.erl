@@ -149,7 +149,6 @@ ekaf_send(KafkaTopic, Type, ClientId, {Topic, Opts}, _Env) ->
   ekaf_send_async(KafkaTopic, Json);
 ekaf_send(KafkaTopic, Type, _, Message, _Env) ->
   Id = Message#mqtt_message.id,
-  PktId = Message#mqtt_message.pktid,
   From = Message#mqtt_message.from, %需要登录和不需要登录这里的返回值是不一样的
   Topic = Message#mqtt_message.topic,
   Payload = Message#mqtt_message.payload,
@@ -165,7 +164,6 @@ ekaf_send(KafkaTopic, Type, _, Message, _Env) ->
     {type, Type},
     {client_id, ClientId},
     {message, [
-      {pktId, PktId},
       {username, Username},
       {topic, Topic},
       {payload, Payload},
@@ -182,18 +180,9 @@ ekaf_send_async(Topic, Msg) ->
   %Topic = <<"quec_emq_to_kafka">>,
   ekaf_send_sync(Topic, Msg).
 
-
-%ekaf_send_async(Topic, Msg) ->
-%ekaf:produce_async_batched(iolist_to_binary(Topic), iolist_to_binary(Msg)).
-
-
-ekaf_send_sync(Msg) ->
-  Topic = <<"quec_emq_to_kafka">>,
-  ekaf_send_sync(Topic, Msg).
-
 ekaf_send_sync(Topic, Msg) ->
   %ekaf:produce_async(iolist_to_binary(Topic), iolist_to_binary(Msg)).
-  ekaf:produce_sync_batched(iolist_to_binary(Topic), iolist_to_binary(Msg)).
+  ekaf:produce_async_batched(iolist_to_binary(Topic), iolist_to_binary(Msg)).
 
 i(true) -> 1;
 i(false) -> 0;
