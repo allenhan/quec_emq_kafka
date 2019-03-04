@@ -65,6 +65,14 @@ on_client_unsubscribe(ClientId, Username, TopicTable, _Env) ->
 
 on_session_created(ClientId, Username, _Env) ->
   %io:format("session(~s/~s) created.", [ClientId, Username]).
+  Json = mochijson2:encode([
+    {type, <<"session_created">>},
+    {client_id, ClientId},
+    {user_name, Username},
+    {cluster_node, node()},
+    {ts, emqttd_time:now_ms()}
+  ]),
+  ekaf_send_async(<<"emq_notify">>, Json),
   {ok, Username}.
 
 on_session_subscribed(ClientId, Username, {Topic, Opts}, _Env) ->
@@ -182,7 +190,7 @@ ekaf_send_async(Topic, Msg) ->
 
 ekaf_send_sync(Topic, Msg) ->
   %ekaf:produce_async(iolist_to_binary(Topic), iolist_to_binary(Msg)).
-  ekaf:produce_async_batched(iolist_to_binary(Topic), iolist_to_binary(Msg)).
+  ekaf:produce_sync_batched(iolist_to_binary(Topic), iolist_to_binary(Msg)).
 
 i(true) -> 1;
 i(false) -> 0;
