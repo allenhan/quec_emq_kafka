@@ -91,11 +91,11 @@ on_message_publish(Message = #mqtt_message{topic = <<"$SYS/", _/binary>>}, _Env)
   {ok, Message};
 on_message_publish(Message, _Env) ->
   io:format("publish ~s~n", [emqttd_message:format(Message)]),
- % ekaf_send(<<"emq_message">>, <<"message_publish">>, {}, Message, _Env),
+  ekaf_send(<<"emq_message">>, <<"message_publish">>, {}, Message, _Env),
   {ok, Message}.
 
 on_message_delivered(ClientId, Username, Message, _Env) ->
-  %io:format("delivered to client(~s/~s): ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
+  io:format("delivered to client(~s/~s): ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
   ekaf_send(<<"emq_message">>, <<"message_delivered">>, {}, Message, _Env),
   {ok, Message}.
 
