@@ -90,7 +90,7 @@ on_session_terminated(ClientId, Username, Reason, _Env) ->
 on_message_publish(Message = #mqtt_message{topic = <<"$SYS/", _/binary>>}, _Env) ->
   {ok, Message};
 on_message_publish(Message, _Env) ->
-  %io:format("publish ~s~n", [emqttd_message:format(Message)]),
+  io:format("publish ~s~n", [emqttd_message:format(Message)]),
  % ekaf_send(<<"emq_message">>, <<"message_publish">>, {}, Message, _Env),
   {ok, Message}.
 
@@ -189,8 +189,8 @@ ekaf_send_async(Topic, Msg) ->
   ekaf_send_sync(Topic, Msg).
 
 ekaf_send_sync(Topic, Msg) ->
-  %ekaf:produce_async(iolist_to_binary(Topic), iolist_to_binary(Msg)).
-  ekaf:produce_sync_batched(iolist_to_binary(Topic), iolist_to_binary(Msg)).
+  ekaf:produce_async(iolist_to_binary(Topic), iolist_to_binary(Msg)).
+  %ekaf:produce_sync_batched(iolist_to_binary(Topic), iolist_to_binary(Msg)).
 
 i(true) -> 1;
 i(false) -> 0;
