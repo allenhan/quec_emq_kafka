@@ -83,7 +83,7 @@ on_session_unsubscribed(ClientId, Username, {Topic, Opts}, _Env) ->
 
 on_session_terminated(ClientId, Username, Reason, _Env) ->
   %io:format("session(~s/~s) terminated: ~p.~n", [ClientId, Username, Reason]),
-  ekaf_send(<<"emq_notify">>, <<"client_disconnected">>, ClientId, {Reason}, _Env),
+  %%ekaf_send(<<"emq_notify">>, <<"session_terminated">>, ClientId, {Reason}, _Env),
   stop.
 
 %% transform message and return
