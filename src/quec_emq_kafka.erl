@@ -169,7 +169,7 @@ ekaf_send(KafkaTopic, Type, _, Message, _Env) ->
   Username = u(From),
 
   Json = mochijson2:encode([
-    {messagesId,Id},
+    {messagesId,binary_to_list(Id)},
     {type, Type},
     {client_id, ClientId},
     {message, [
