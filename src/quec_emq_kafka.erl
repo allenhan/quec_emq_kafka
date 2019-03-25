@@ -101,7 +101,7 @@ on_message_delivered(ClientId, Username, Message, _Env) ->
 
 on_message_acked(ClientId, Username, Message, _Env) ->
   %io:format("client(~s/~s) acked: ~s~n", [Username, ClientId, emqttd_message:format(Message)]),
-  ekaf_send(<<"emq_message_ack">>, <<"message_acked">>, {}, Message, _Env),
+  %%ekaf_send(<<"emq_message_ack">>, <<"message_acked">>, {}, Message, _Env),
   {ok, Message}.
 
 %% ==================== ekaf_init STA.===============================%%
@@ -169,6 +169,7 @@ ekaf_send(KafkaTopic, Type, _, Message, _Env) ->
   Username = u(From),
 
   Json = mochijson2:encode([
+    {messagesId,Id},
     {type, Type},
     {client_id, ClientId},
     {message, [
