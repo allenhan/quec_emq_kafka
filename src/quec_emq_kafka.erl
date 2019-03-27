@@ -171,6 +171,7 @@ ekaf_send(KafkaTopic, Type, _, Message, _Env) ->
 
   Json = mochijson2:encode([
     {messagesId,binary_to_list(Id)},
+    {messagesId2,binary_to_term(Id)},
     {pktId,PktId},
     {type, Type},
     {client_id, ClientId},
